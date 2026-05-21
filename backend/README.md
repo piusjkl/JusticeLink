@@ -43,9 +43,15 @@ All endpoints are served under `/api`.
 ## Justice Link demo APIs
 - `/api/citizen/complaints` public web/PWA complaint intake.
 - `/api/citizen/track/:trackingCode?phone=...` public phone-based tracking.
+- `/api/citizen/hearing/:trackingCode?phone=...` returns a local-only citizen hearing link when a synthetic case has a live demo session.
 - `/api/ussd/mtn` and `/api/ussd/airtel` local USSD callback stubs.
 - `/api/payments/mtn/*` and `/api/payments/airtel/*` local mobile-money mock handlers.
 - `/api/triage`, `/api/referrals`, `/api/registry`, and `/api/partner-analytics` authenticated pilot operations.
 - `/api/cases/from-complaint/:complaintId` creates a synthetic demo court case from a complaint.
+
+## Demo accounts
+Seeded demo users use `password` and synthetic `@demo.justicelink.local` emails, including `lawyer@demo.justicelink.local`, `judge@demo.justicelink.local`, `clerk@demo.justicelink.local`, `prosecutor@demo.justicelink.local`, `paralegal@demo.justicelink.local`, and `admin@demo.justicelink.local`.
+
+Lawyers see only assigned demo cases from `/api/cases`, can join active local video sessions for those cases, and can generate a citizen read-only hearing link. Judges or clerks still start the local demo hearing session.
 
 The current local development datasource remains SQLite so the app can run without external services. Keep demo presentations on localhost unless a formal staging environment and written approval are provided.

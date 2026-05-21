@@ -18,7 +18,7 @@ export default function PublicHearing() {
   return (
     <div className="min-h-screen p-6 max-w-3xl mx-auto">
       <h1 className="text-2xl font-serif mb-2">Justice Link Demo Hearing</h1>
-      <p className="text-sm text-muted-foreground mb-4">Read-only synthetic local view. No live video service is connected.</p>
+      <p className="text-sm text-muted-foreground mb-4">Citizen read-only synthetic local view. No live video service is connected.</p>
       <div className="border rounded p-4">
         <div className="text-sm">Case: <span className="font-medium">{data.case.externalId || data.case.id} — {data.case.title}</span></div>
         <div className="text-xs text-muted-foreground">Type: {data.case.type}</div>

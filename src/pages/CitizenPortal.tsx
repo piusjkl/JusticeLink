@@ -9,12 +9,29 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { DemoNotice } from '@/components/DemoNotice';
-import { initiateMobileMoneyPayment, submitCitizenComplaint, trackCitizenComplaint, type CitizenComplaintPayload } from '@/lib/api';
-import { AlertTriangle, CheckCircle, FileText, Phone, RefreshCw, Scale, Shield } from 'lucide-react';
+import { getCitizenHearingAccess, initiateMobileMoneyPayment, submitCitizenComplaint, trackCitizenComplaint, type CitizenComplaintPayload } from '@/lib/api';
+import { AlertTriangle, CheckCircle, ExternalLink, FileText, Phone, RefreshCw, Scale, Shield, Video } from 'lucide-react';
 
 const queueKey = 'justicelink_offline_complaints';
 
 type QueuedComplaint = CitizenComplaintPayload & { queuedAt: string };
+type CitizenHearingAccess = {
+  available: boolean;
+  message?: string;
+  path?: string;
+  case?: {
+    externalId?: string;
+    title?: string;
+    nextHearing?: string | null;
+    hearingLocation?: string | null;
+  };
+};
+type ApiError = { response?: { data?: { error?: string } } };
+
+function apiErrorMessage(error: unknown, fallback: string) {
+  const message = (error as ApiError)?.response?.data?.error;
+  return typeof message === 'string' && message.length > 0 ? message : fallback;
+}
 
 function readQueue(): QueuedComplaint[] {
   try {
@@ -46,8 +63,10 @@ export default function CitizenPortal() {
   const [trackPhone, setTrackPhone] = React.useState('');
   const [trackCode, setTrackCode] = React.useState('');
   const [tracked, setTracked] = React.useState<any | null>(null);
+  const [hearingAccess, setHearingAccess] = React.useState<CitizenHearingAccess | null>(null);
   const [queued, setQueued] = React.useState<QueuedComplaint[]>(() => readQueue());
   const [loading, setLoading] = React.useState(false);
+  const [hearingLoading, setHearingLoading] = React.useState(false);
   const [syncing, setSyncing] = React.useState(false);
   const [error, setError] = React.useState('');
 
@@ -116,12 +135,27 @@ export default function CitizenPortal() {
   const onTrack = async (event: React.FormEvent) => {
     event.preventDefault();
     setTracked(null);
+    setHearingAccess(null);
     setError('');
     try {
       const data = await trackCitizenComplaint(trackCode, trackPhone);
       setTracked(data);
     } catch (e: any) {
       setError(e?.response?.data?.error || 'Could not find a complaint for those details.');
+    }
+  };
+
+  const checkHearingAccess = async () => {
+    setHearingLoading(true);
+    setHearingAccess(null);
+    setError('');
+    try {
+      const data = await getCitizenHearingAccess(trackCode, trackPhone);
+      setHearingAccess(data);
+    } catch (e) {
+      setError(apiErrorMessage(e, 'Could not load demo hearing access.'));
+    } finally {
+      setHearingLoading(false);
     }
   };
 
@@ -315,7 +349,29 @@ export default function CitizenPortal() {
               <CardContent className="space-y-3 text-sm">
                 <p><strong>{tracked.trackingCode}</strong> is {tracked.status}</p>
                 {tracked.openedCase && (
-                  <p>Demo court case: <strong>{tracked.openedCase.externalId}</strong></p>
+                  <div className="space-y-3 rounded-md border p-3">
+                    <p>Demo court case: <strong>{tracked.openedCase.externalId}</strong></p>
+                    <Button type="button" variant="outline" size="sm" onClick={checkHearingAccess} disabled={hearingLoading || !trackCode || !trackPhone}>
+                      <Video className={`mr-2 h-4 w-4 ${hearingLoading ? 'animate-pulse' : ''}`} />
+                      {hearingLoading ? 'Checking...' : 'Check Demo Hearing Access'}
+                    </Button>
+                    {hearingAccess && (
+                      <div className="space-y-2 rounded-md bg-accent/40 p-3">
+                        <p className="text-muted-foreground">{hearingAccess.message || (hearingAccess.available ? 'Demo hearing is live.' : 'Demo hearing is not live yet.')}</p>
+                        {hearingAccess.case?.nextHearing && (
+                          <p className="text-xs text-muted-foreground">Scheduled: {new Date(hearingAccess.case.nextHearing).toLocaleString()}</p>
+                        )}
+                        {hearingAccess.available && hearingAccess.path && (
+                          <Button asChild size="sm">
+                            <a href={`${window.location.origin}${hearingAccess.path}`} target="_blank" rel="noreferrer">
+                              <ExternalLink className="mr-2 h-4 w-4" />
+                              Open Demo Hearing
+                            </a>
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )}
                 <p>Category: {tracked.category} • Urgency: {tracked.urgency}</p>
                 <div className="space-y-2">

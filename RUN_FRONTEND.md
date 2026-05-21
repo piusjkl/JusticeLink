@@ -41,6 +41,8 @@ How to run and verify the frontend locally (Windows PowerShell)
 
 6) Open the app in your browser at the address printed by Vite (default in this repo: http://127.0.0.1:8080)
 
+Demo login accounts use the password `password`. For the lawyer-side virtual hearing demo, sign in as `lawyer@demo.justicelink.local`. A judge or clerk starts a hearing first, then the lawyer can join the assigned case session and generate the local citizen read-only link.
+
 7) Common fixes
   - If frontend port is in use: edit `vite.config.ts` or pass another Vite port.
   - If backend port is in use: `$env:PORT=4001; npm run dev` and update the Vite proxy target.
