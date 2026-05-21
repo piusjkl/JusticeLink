@@ -22,13 +22,22 @@ export function Login() {
   const [error, setError] = useState<string>('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [demoSubmittingEmail, setDemoSubmittingEmail] = useState('');
   const demoAccounts = [
+    ['Admin', 'admin@demo.justicelink.local'],
     ['Clerk', 'clerk@demo.justicelink.local'],
     ['Judge', 'judge@demo.justicelink.local'],
+    ['Lawyer', 'lawyer@demo.justicelink.local'],
+    ['Prosecutor', 'prosecutor@demo.justicelink.local'],
+    ['Paralegal', 'paralegal@demo.justicelink.local'],
     ['Legal Aid', 'legalaid@demo.justicelink.local'],
-    ['Analyst', 'analyst@demo.justicelink.local'],
-    ['Admin', 'admin@demo.justicelink.local'],
+    ['Partner Admin', 'partner@demo.justicelink.local'],
+    ['Data Analyst', 'analyst@demo.justicelink.local'],
   ] as const;
+
+  const loginErrorMessage = (errorValue: unknown) => (
+    errorValue instanceof Error ? errorValue.message : 'Invalid email or password. Please try again.'
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,11 +60,30 @@ export function Login() {
         title: "Login Successful",
         description: "Welcome to the Justice Link demo",
       });
-    } catch (err: any) {
-      const msg = err?.message || 'Invalid email or password. Please try again.';
-      setError(msg);
+    } catch (err) {
+      setError(loginErrorMessage(err));
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleDemoLogin = async (label: string, email: string) => {
+    const demoCredentials = { email, password: 'password', rememberMe: false };
+    setCredentials(demoCredentials);
+    setError('');
+    setDemoSubmittingEmail(email);
+    setIsSubmitting(true);
+    try {
+      await login(demoCredentials);
+      toast({
+        title: `${label} Demo Login`,
+        description: 'Signed in with the local synthetic demo account',
+      });
+    } catch (err) {
+      setError(loginErrorMessage(err));
+    } finally {
+      setIsSubmitting(false);
+      setDemoSubmittingEmail('');
     }
   };
 
@@ -167,7 +195,7 @@ export function Login() {
                       Remember me
                     </Label>
                   </div>
-                  <Button variant="link" className="p-0 h-auto text-primary" onClick={() => toast({ title: 'Reset Password', description: 'Please contact your system administrator to reset your password.' })}>
+                  <Button type="button" variant="link" className="p-0 h-auto text-primary" onClick={() => toast({ title: 'Reset Password', description: 'Please contact your system administrator to reset your password.' })}>
                     Forgot password?
                   </Button>
                 </div>
@@ -198,20 +226,26 @@ export function Login() {
               </div>
 
               <div className="rounded-md border bg-muted/40 p-3">
-                <p className="mb-2 text-xs font-medium text-muted-foreground">Demo accounts use password: password</p>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                  <Shield className="h-3.5 w-3.5" />
+                  <span>One-click local demo accounts</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   {demoAccounts.map(([label, email]) => (
                     <Button
                       key={email}
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => setCredentials({ email, password: 'password', rememberMe: false })}
+                      className="h-auto min-h-9 whitespace-normal px-2 py-2 text-xs"
+                      disabled={isSubmitting}
+                      onClick={() => handleDemoLogin(label, email)}
                     >
-                      {label}
+                      {demoSubmittingEmail === email ? 'Signing in...' : label}
                     </Button>
                   ))}
                 </div>
+                <p className="mt-2 text-xs text-muted-foreground">Citizen access stays public through the citizen portal.</p>
               </div>
             </CardContent>
           </Card>
