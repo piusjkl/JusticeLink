@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { CaseProgressTrigger } from '@/components/CaseProgress';
 import { formatDistanceToNow, parseISO } from 'date-fns';
 import { getCases } from '@/lib/api';
+import { LawyerVirtualHearingDemo } from '@/components/LawyerVirtualHearingDemo';
 
 export function LawyerDashboard() {
   const navigate = useNavigate();
@@ -23,7 +24,7 @@ export function LawyerDashboard() {
     return () => { mounted = false; };
   }, []);
 
-  const assignedCases = useMemo(() => cases.filter((c: any) => c.lawyer?.name === 'Sarah Aine'), [cases]);
+  const assignedCases = useMemo(() => cases, [cases]);
   const upcomingHearings = useMemo(() => assignedCases
     .filter((c: any) => c.nextHearing)
     .sort((a: any, b: any) => new Date(a.nextHearing!).getTime() - new Date(b.nextHearing!).getTime()), [assignedCases]);
@@ -120,6 +121,8 @@ export function LawyerDashboard() {
         </Card>
       </div>
 
+      <LawyerVirtualHearingDemo cases={assignedCases} loading={loading} />
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Assigned Cases */}
         <Card className="shadow-card">
@@ -170,7 +173,7 @@ export function LawyerDashboard() {
               <div key={case_.id} className="flex items-center justify-between p-4 border border-border rounded-lg">
                 <div className="flex-1">
                   <h4 className="font-medium text-foreground mb-1">{case_.title}</h4>
-                  <p className="text-sm text-muted-foreground mb-1">{case_.id}</p>
+                  <p className="text-sm text-muted-foreground mb-1">{case_.externalId || case_.id}</p>
                   <div className="flex items-center text-sm text-gold">
                     <CalendarDays className="w-4 h-4 mr-1" />
                     {case_.nextHearing && new Intl.DateTimeFormat('en-US', {
@@ -182,7 +185,7 @@ export function LawyerDashboard() {
                     }).format(new Date(case_.nextHearing))}
                   </div>
                 </div>
-                <Button size="sm" className="bg-gradient-gold text-gold-foreground hover:opacity-90" onClick={() => navigate(`/case/${case_.id}`)}>
+                <Button size="sm" className="bg-gradient-gold text-gold-foreground hover:opacity-90" onClick={() => navigate(`/case/${case_.externalId || case_.id}`)}>
                   Prepare
                 </Button>
               </div>

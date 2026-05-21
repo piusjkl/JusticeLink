@@ -36,7 +36,7 @@ export function JudgeDashboard() {
     return () => { mounted = false; };
   }, []);
 
-  const assignedCases = React.useMemo(() => cases.filter((c: any) => c.judge?.name === 'Hon. Justice Robert Kato'), [cases]);
+  const assignedCases = React.useMemo(() => cases, [cases]);
   const caseOptions = React.useMemo(() => assignedCases.map((c: any) => ({ id: c.externalId || c.id, title: c.title })), [assignedCases]);
   const pendingApprovals = React.useMemo(() => assignedCases.flatMap((c: any) => (c.files || []).filter((f: any) => f.status === 'pending')), [assignedCases]);
   const upcomingHearings = React.useMemo(() => assignedCases

@@ -27,6 +27,13 @@ async function notifyJudgeAndClerks(caseId: string, title: string, message: stri
   }
 }
 
+function hasCaseSessionAccess(user: JwtPayload, c: any) {
+  return ['admin','clerk'].includes(user.role)
+    || c.judgeId === user.sub
+    || c.lawyerId === user.sub
+    || c.prosecutorId === user.sub;
+}
+
 export async function startSession(req: Request, res: Response) {
   const user = (req as any).user as JwtPayload;
   const { caseId } = req.params;
@@ -69,8 +76,7 @@ export async function joinSession(req: Request, res: Response) {
   if (!session) return res.status(404).json({ error: 'Session not found' });
   // Access: participants must be assigned to the case or be clerk/admin
   const c = session.case;
-  const allowed = ['admin','clerk'].includes(user.role) || c.judgeId === user.sub || c.lawyerId === user.sub || c.prosecutorId === user.sub;
-  if (!allowed) return res.status(403).json({ error: 'Forbidden' });
+  if (!hasCaseSessionAccess(user, c)) return res.status(403).json({ error: 'Forbidden' });
   const part = await (prisma as any).videoParticipant.create({ data: { sessionId, userId: user.sub, role: user.role } });
   await notifyJudgeAndClerks(c.id, 'Video session activity', `${c.externalId || c.id}: ${user.role} joined the session`, `/case/${c.externalId || c.id}`);
   broadcastSession(sessionId, { event: 'participant_join', userId: user.sub, role: user.role });
@@ -83,8 +89,9 @@ export async function recordAction(req: Request, res: Response) {
   const { sessionId } = req.params;
   const parsed = actionSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
-  const session = await (prisma as any).videoSession.findUnique({ where: { id: sessionId } });
+  const session = await (prisma as any).videoSession.findUnique({ where: { id: sessionId }, include: { case: true } });
   if (!session) return res.status(404).json({ error: 'Session not found' });
+  if (!hasCaseSessionAccess(user, session.case)) return res.status(403).json({ error: 'Forbidden' });
   // Only judge can record judge actions; others can mark attendance
   const allowedActions = user.role === 'judge'
     ? ['record_ruling','adjourn','request_evidence','mark_attendance','proceed_in_absence','end_session']
@@ -99,9 +106,11 @@ export async function recordAction(req: Request, res: Response) {
 }
 
 export async function getSession(req: Request, res: Response) {
+  const user = (req as any).user as JwtPayload;
   const { sessionId } = req.params;
-  const session = await (prisma as any).videoSession.findUnique({ where: { id: sessionId }, include: { participants: { include: { user: true } }, actions: true } });
+  const session = await (prisma as any).videoSession.findUnique({ where: { id: sessionId }, include: { case: true, participants: { include: { user: true } }, actions: true } });
   if (!session) return res.status(404).json({ error: 'Session not found' });
+  if (!hasCaseSessionAccess(user, session.case)) return res.status(403).json({ error: 'Forbidden' });
   return res.json({ ...session, ...demoMeta() });
 }
 
@@ -111,8 +120,7 @@ export async function createShareLinks(req: Request, res: Response) {
   const { sessionId } = req.params;
   const session = await (prisma as any).videoSession.findUnique({ where: { id: sessionId }, include: { case: true } });
   if (!session) return res.status(404).json({ error: 'Session not found' });
-  // Only judge, clerk, or admin can generate share links
-  if (!['judge','clerk','admin'].includes(user.role)) return res.status(403).json({ error: 'Forbidden' });
+  if (!hasCaseSessionAccess(user, session.case)) return res.status(403).json({ error: 'Forbidden' });
   // Tokens expire in 1 day by default
   const exp = '1d';
   const publicToken = signToken({ kind: 'video_share', scope: 'public', sessionId }, exp);
@@ -157,9 +165,11 @@ export async function prisonJoin(req: Request, res: Response) {
 }
 
 export async function getActiveSessionForCase(req: Request, res: Response) {
+  const user = (req as any).user as JwtPayload;
   const { caseId } = req.params;
   const c = await prisma.case.findFirst({ where: { OR: [{ id: caseId }, { externalId: caseId }] } });
   if (!c) return res.status(404).json({ error: 'Case not found' });
+  if (!hasCaseSessionAccess(user, c)) return res.status(403).json({ error: 'Forbidden' });
   const session = await (prisma as any).videoSession.findFirst({
     where: { caseId: c.id, endedAt: null },
     orderBy: { startedAt: 'desc' },

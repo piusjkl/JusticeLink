@@ -7,23 +7,21 @@ import { getCases } from '@/lib/api';
 import { FolderSearch, CalendarDays, FileText, Building2, Users2, Scale, Upload, FileCheck, ShieldAlert } from 'lucide-react';
 import { CaseProgressTrigger } from '@/components/CaseProgress';
 import { formatDistanceToNow, parseISO } from 'date-fns';
-import { useAuth } from '@/contexts/AuthContext';
 
 export function ProsecutorDashboard() {
   const navigate = useNavigate();
-  const { user } = useAuth();
 
   const [assignedCases, setAssignedCases] = React.useState<any[]>([]);
   const [lawEnforcementQueue, setQueue] = React.useState<any[]>([]);
   React.useEffect(() => {
     getCases().then((data) => {
       setQueue(data.filter((c: any) => c.type === 'criminal'));
-      setAssignedCases(data.filter((c: any) => c.prosecutor?.name === (user?.name || '')));
+      setAssignedCases(Array.isArray(data) ? data : []);
     }).catch(() => {
       setQueue([]);
       setAssignedCases([]);
     });
-  }, [user?.name]);
+  }, []);
   const upcomingHearings = assignedCases.filter(c => c.nextHearing).sort((a, b) => new Date(a.nextHearing!).getTime() - new Date(b.nextHearing!).getTime());
 
   const getStatusColor = (status: string) => {
@@ -130,14 +128,14 @@ export function ProsecutorDashboard() {
                       {case_.priority}
                     </Badge>
                   </div>
-                  <p className="text-sm text-muted-foreground mb-1">{case_.id}</p>
+                  <p className="text-sm text-muted-foreground mb-1">{case_.externalId || case_.id}</p>
                   <p className="text-sm text-muted-foreground">{case_.type} • Filed {formatDistanceToNow(parseISO(case_.filingDate))} ago</p>
                 </div>
                 <div className="flex flex-col items-end space-y-2">
-                  <Button variant="ghost" size="sm" className="text-primary" onClick={() => navigate(`/case/${case_.id}`)}>
+                  <Button variant="ghost" size="sm" className="text-primary" onClick={() => navigate(`/case/${case_.externalId || case_.id}`)}>
                     Review Case
                   </Button>
-                  <CaseProgressTrigger caseId={case_.id} label="Progress" />
+                  <CaseProgressTrigger caseId={case_.externalId || case_.id} label="Progress" />
                 </div>
               </div>
             ))}

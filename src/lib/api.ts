@@ -140,6 +140,11 @@ export async function trackCitizenComplaint(trackingCode: string, phone: string)
   return res.data;
 }
 
+export async function getCitizenHearingAccess(trackingCode: string, phone: string) {
+  const res = await api.get(`/citizen/hearing/${encodeURIComponent(trackingCode)}`, { params: { phone } });
+  return res.data;
+}
+
 export async function initiateMobileMoneyPayment(provider: 'mtn' | 'airtel', payload: { trackingCode: string; phone: string; amount?: number }) {
   const res = await api.post(`/payments/${provider}/initiate`, payload);
   return res.data;
