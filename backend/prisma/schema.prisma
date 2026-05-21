@@ -1,0 +1,464 @@
+// Prisma schema for SQLite database
+// Reflects frontend models: Users, Cases, Evidence, Roles/Permissions, Timeline
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         String   // admin | judge | lawyer | clerk | prosecutor
+  permissions  String?  // JSON map of explicit permission toggles
+  department   String?
+  avatar       String?
+  // Personal data (PII)
+  dateOfBirth  DateTime?
+  address      String?
+  status       String   @default("active") // active | inactive
+  lastLogin    DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  // Relations
+  judgeCases       Case[] @relation("JudgeCases")
+  lawyerCases      Case[] @relation("LawyerCases")
+  prosecutorCases  Case[] @relation("ProsecutorCases")
+  notifications    Notification[]
+  // Video relations
+  presidedSessions VideoSession[] @relation("JudgeSessions")
+  videoParticipations VideoParticipant[]
+  videoActions     VideoAction[]
+  // New relations for pleadings, participants, and bail requests
+  createdPleadings Pleading[]
+  participations   Participant[]
+  requestedBails   BailRequest[] @relation("BailRequestRequestedBy")
+  judgedBails      BailRequest[] @relation("BailRequestJudge")
+  decidedBails     BailRequest[] @relation("BailRequestDecisionBy")
+  statusEvents     ComplaintStatusEvent[]
+  triageReviews    TriageResult[]
+  referralAssignments Referral[]
+}
+
+model Case {
+  id               String   @id @default(cuid())
+  externalId       String   @unique // e.g., CASE-2025-001 from UI
+  title            String
+  type             String   // criminal | civil | family | corporate
+  status           String   @default("pending") // active | pending | closed | archived
+  filingDate       DateTime
+  nextHearing      DateTime?
+  hearingLocation  String?
+  plaintiff        String
+  defendant        String
+  description      String
+  priority         String   @default("medium") // low | medium | high | urgent
+  // instanceLevel represents the four-level hierarchy (e.g., National > Regional > District > Court)
+  instanceLevel    String   @default("level4") // level1 | level2 | level3 | level4
+  courtLevel       String?
+  division         String? // e.g., land matters, civil, etc
+  category         String? // case categories
+  feesPaid         Boolean @default(false)
+  paymentRef       String?
+  // Plaintiff snapshot at filing time
+  plaintiffAge     Int?
+  plaintiffAddress String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  deletedAt        DateTime?
+
+  // Relations
+  judgeId          String?
+  judge            User?    @relation("JudgeCases", fields: [judgeId], references: [id])
+  lawyerId         String?
+  lawyer           User?    @relation("LawyerCases", fields: [lawyerId], references: [id])
+  prosecutorId     String?
+  prosecutor       User?    @relation("ProsecutorCases", fields: [prosecutorId], references: [id])
+
+  files            Evidence[]
+  timeline         TimelineEvent[]
+  videoSessions    VideoSession[]
+  pleadings        Pleading[]
+  participants     Participant[]
+  charges          Charge[]
+  // Related cases bidirectional relationship
+  relatedCases     RelatedCase[] @relation("CaseFromRelation")
+  relatedTo        RelatedCase[] @relation("CaseToRelation")
+  bailRequests     BailRequest[]
+  policeStationId  String?
+  policeStation    PoliceStation? @relation(fields: [policeStationId], references: [id])
+  policeCaseNumber String?
+  prosecutionNumber String?
+  stateAttorney    String?
+  policeOfficer    String?
+}
+
+// Priority and InstanceLevel are represented as strings since SQLite doesn't support enums
+// Priority values: low | medium | high | urgent
+// InstanceLevel values: level1 | level2 | level3 | level4
+
+model Pleading {
+  id          String   @id @default(cuid())
+  caseId      String
+  case        Case     @relation(fields: [caseId], references: [id])
+  type        String   // change_sheet | initial_pleading | response | etc
+  description String?
+  createdById String?
+  createdBy   User?    @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  documents   PleadingDocument[]
+  witnesses   String?  // JSON list or simple text (can be expanded later)
+}
+
+model PleadingDocument {
+  id         String   @id @default(cuid())
+  pleadingId String
+  pleading   Pleading @relation(fields: [pleadingId], references: [id])
+  name       String
+  size       Int
+  type       String
+  url        String
+  uploadedBy String?
+  uploadedAt DateTime @default(now())
+}
+
+model Participant {
+  id        String   @id @default(cuid())
+  caseId    String
+  case      Case     @relation(fields: [caseId], references: [id])
+  userId    String?  // optional link to User
+  user      User?    @relation(fields: [userId], references: [id])
+  name      String
+  role      String   // advocate | witness | complainant | respondent | police_officer | state_attorney
+  contact   String?
+  organization String?
+}
+
+model PoliceStation {
+  id        String   @id @default(cuid())
+  name      String
+  district  String?
+  code      String?  // optional police code
+  address   String?
+  contact   String?
+  cases     Case[]
+}
+
+model Charge {
+  id          String   @id @default(cuid())
+  caseId      String
+  case        Case     @relation(fields: [caseId], references: [id])
+  description String
+  code        String?
+  isCapital   Boolean  @default(false)
+}
+
+model RelatedCase {
+  id            String @id @default(cuid())
+  caseId        String
+  case          Case   @relation("CaseFromRelation", fields: [caseId], references: [id])
+  relatedCaseId String
+  relatedCase   Case   @relation("CaseToRelation", fields: [relatedCaseId], references: [id])
+  relationType  String? // e.g., appeal | linked_investigation
+}
+
+model Evidence {
+  id          String   @id @default(cuid())
+  name        String
+  type        String
+  size        Int
+  uploadedBy  String
+  uploadedAt  DateTime @default(now())
+  status      String   @default("pending") // pending | approved | rejected
+  description String?
+  tags        String?  // JSON string array
+  caseId      String
+  case        Case     @relation(fields: [caseId], references: [id])
+}
+
+model TimelineEvent {
+  id          String   @id @default(cuid())
+  caseId      String
+  case        Case     @relation(fields: [caseId], references: [id])
+  type        String   // filing | hearing | document | ruling | assignment
+  title       String
+  description String
+  timestamp   DateTime @default(now())
+  actor       String
+  metadata    String?  // JSON string
+}
+
+// Permission model omitted for SQLite MVP; role-based auth handled in app layer
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  title     String
+  message   String
+  link      String?
+  type      String?
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+}
+
+// Role-specific user manual content
+model UserManual {
+  id        String   @id @default(cuid())
+  role      String   // admin | judge | lawyer | clerk | prosecutor
+  content   String   // markdown
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+  @@unique([role])
+}
+
+// Video session models (simplified, REST-driven presence)
+model VideoSession {
+  id         String   @id @default(cuid())
+  caseId     String
+  case       Case     @relation(fields: [caseId], references: [id])
+  judgeId    String
+  judge      User     @relation("JudgeSessions", fields: [judgeId], references: [id])
+  startedAt  DateTime @default(now())
+  endedAt    DateTime?
+  actions    VideoAction[]
+  participants VideoParticipant[]
+}
+
+model VideoParticipant {
+  id         String   @id @default(cuid())
+  sessionId  String
+  session    VideoSession @relation(fields: [sessionId], references: [id])
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  role       String
+  joinedAt   DateTime @default(now())
+  leftAt     DateTime?
+}
+
+model VideoAction {
+  id         String   @id @default(cuid())
+  sessionId  String
+  session    VideoSession @relation(fields: [sessionId], references: [id])
+  action     String   // ruling | adjourn | request_evidence | mark_attendance | proceed_in_absence | end_session
+  details    String?
+  createdAt  DateTime @default(now())
+  actorId    String
+  actor      User     @relation(fields: [actorId], references: [id])
+}
+
+// Bail requests
+model BailRequest {
+  id             String   @id @default(cuid())
+  caseId         String
+  case           Case     @relation(fields: [caseId], references: [id])
+  requestedById  String
+  requestedBy    User     @relation("BailRequestRequestedBy", fields: [requestedById], references: [id])
+  judgeId        String
+  judge          User     @relation("BailRequestJudge", fields: [judgeId], references: [id])
+  amount         Int
+  reason         String?
+  status         String   @default("pending") // pending | approved | declined
+  decisionById   String?
+  decisionBy     User?    @relation("BailRequestDecisionBy", fields: [decisionById], references: [id])
+  decisionNotes  String?
+  decidedAt      DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model CitizenProfile {
+  id              String   @id @default(cuid())
+  phone           String   @unique
+  fullName        String?
+  district        String?
+  language        String   @default("en")
+  lowLiteracy     Boolean  @default(false)
+  disabilityNeeds String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  complaints      Complaint[]
+}
+
+model Complaint {
+  id               String   @id @default(cuid())
+  trackingCode     String   @unique
+  citizenId        String?
+  citizen          CitizenProfile? @relation(fields: [citizenId], references: [id])
+  channel          String   // web | ussd | call_center | partner
+  language         String   @default("en")
+  district         String?
+  category         String?
+  status           String   @default("submitted")
+  urgency          String   @default("normal")
+  summary          String?
+  description      String
+  incidentLocation String?
+  consentToShare   Boolean  @default(true)
+  safetyFlag       Boolean  @default(false)
+  offlineClientId  String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  triage           TriageResult?
+  referrals        Referral[]
+  statusEvents     ComplaintStatusEvent[]
+  payments         PaymentTransaction[]
+  registryEntries  RegistryEntry[]
+  ussdSessions     USSDSession[]
+}
+
+model ComplaintStatusEvent {
+  id          String   @id @default(cuid())
+  complaintId String
+  complaint   Complaint @relation(fields: [complaintId], references: [id])
+  status      String
+  actorId     String?
+  actor       User?    @relation(fields: [actorId], references: [id])
+  actorType   String   @default("system")
+  message     String?
+  metadata    String?
+  createdAt   DateTime @default(now())
+}
+
+model TriageResult {
+  id                         String   @id @default(cuid())
+  complaintId                String   @unique
+  complaint                  Complaint @relation(fields: [complaintId], references: [id])
+  category                   String
+  urgency                    String
+  confidence                 Float
+  language                   String
+  recommendedInstitutionType String
+  referralReasonCodes        String
+  safetyFlags                String
+  modelVersion               String
+  reviewedById               String?
+  reviewedBy                 User?    @relation(fields: [reviewedById], references: [id])
+  reviewedAt                 DateTime?
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+}
+
+model Referral {
+  id                 String   @id @default(cuid())
+  complaintId        String
+  complaint          Complaint @relation(fields: [complaintId], references: [id])
+  institutionId      String?
+  institution        Institution? @relation(fields: [institutionId], references: [id])
+  legalAidProviderId String?
+  legalAidProvider   LegalAidProvider? @relation(fields: [legalAidProviderId], references: [id])
+  assignedToId       String?
+  assignedTo         User?    @relation(fields: [assignedToId], references: [id])
+  status             String   @default("recommended")
+  priority           String   @default("normal")
+  reasonCodes        String?
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  acceptedAt         DateTime?
+  escalatedAt        DateTime?
+  closedAt           DateTime?
+}
+
+model Institution {
+  id                String   @id @default(cuid())
+  name              String   @unique
+  type              String
+  district          String?
+  contact           String?
+  supportsEmergency Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  referrals         Referral[]
+}
+
+model LegalAidProvider {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  providerType String
+  district    String?
+  contactPhone String?
+  contactEmail String?
+  services    String?
+  supportsWomen Boolean @default(false)
+  supportsYouth Boolean @default(false)
+  supportsPwd   Boolean @default(false)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  referrals   Referral[]
+}
+
+model USSDSession {
+  id          String   @id @default(cuid())
+  provider    String
+  sessionId   String   @unique
+  phone       String
+  state       String
+  payload     String?
+  complaintId String?
+  complaint   Complaint? @relation(fields: [complaintId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  expiresAt   DateTime?
+}
+
+model PaymentTransaction {
+  id              String   @id @default(cuid())
+  provider        String
+  complaintId     String?
+  complaint       Complaint? @relation(fields: [complaintId], references: [id])
+  phone           String
+  amount          Int
+  currency        String   @default("UGX")
+  status          String   @default("pending")
+  externalRef     String?  @unique
+  waiverReason    String?
+  callbackPayload String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model RegistryEntry {
+  id           String   @id @default(cuid())
+  complaintId  String?
+  complaint    Complaint? @relation(fields: [complaintId], references: [id])
+  entityType   String
+  entityId     String
+  eventType    String
+  eventHash    String   @unique
+  previousHash String?
+  fabricTxId   String?
+  fabricStatus String   @default("local_only")
+  metadata     String?
+  createdAt    DateTime @default(now())
+}
+
+model PartnerOrg {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  type      String
+  district  String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  apiTokens PartnerApiToken[]
+}
+
+model PartnerApiToken {
+  id           String   @id @default(cuid())
+  partnerOrgId String
+  partnerOrg   PartnerOrg @relation(fields: [partnerOrgId], references: [id])
+  name         String
+  tokenHash    String   @unique
+  scopes       String
+  expiresAt    DateTime?
+  lastUsedAt   DateTime?
+  createdAt    DateTime @default(now())
+}

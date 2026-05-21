@@ -1,0 +1,36 @@
+import { Router } from 'express';
+import users from './users';
+import cases from './cases';
+import evidence from './evidence';
+import auth from './auth';
+import reports from './reports';
+import notifications from './notifications';
+import manuals from './manuals';
+import video from './video';
+import bail from './bail';
+import citizen from './citizen';
+import ussd from './ussd';
+import triage from './triage';
+import referrals from './referrals';
+import payments from './payments';
+import registry from './registry';
+import partnerAnalytics from './partnerAnalytics';
+
+export const router = Router();
+
+router.use('/auth', auth);
+router.use('/users', users);
+router.use('/cases', cases);
+router.use('/evidence', evidence);
+router.use('/reports', reports);
+router.use('/notifications', notifications);
+router.use('/manuals', manuals);
+router.use('/video', video);
+router.use('/bail', bail);
+router.use('/citizen', citizen);
+router.use('/ussd', ussd);
+router.use('/triage', triage);
+router.use('/referrals', referrals);
+router.use('/payments', payments);
+router.use('/registry', registry);
+router.use('/partner-analytics', partnerAnalytics);
